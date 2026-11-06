@@ -360,6 +360,7 @@ def analizar(
     informes_con_problema: dict[str, set] = defaultdict(set)
     informes_revisados: dict[str, set] = defaultdict(set)
     solicitudes_con_problema: dict[str, set] = defaultdict(set)
+    informes_formato_anterior = 0
 
     def _agregar(h: dict, toma: dict, inf: dict | None, lab: str) -> None:
         fila = {
@@ -394,7 +395,12 @@ def analizar(
             continue                      # sin informe: no es de este apartado (plazos y pendientes viven en Solicitudes e informes)
         por_lab[etiqueta]["con_informe"] += 1
         # Reglas de la solicitud contra el conjunto de sus informes.
-        for h in _analitos(toma, infs, resultados, lab, catalogo, campos_pdf) + _dosis(toma, infs, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, infs, lab, campos_pdf) + _identificacion_pdf(toma, campos_pdf, infs):
+        # Los informes del primer formato de AgroFresh no traen dosis ni recepción ni los datos de la muestra completos: no se les reclama eso.
+        nuevos = [i for i in infs if ((campos_pdf or {}).get(i["id"]) or {}).get("formato", 2) != 1]
+        fmt1 = len(infs) - len(nuevos)
+        informes_formato_anterior += fmt1
+        revisables = (_dosis(toma, nuevos, productos, lab, catalogo, campos_pdf) + _rotulacion(toma, nuevos, lab, campos_pdf)) if nuevos else []
+        for h in _analitos(toma, infs, resultados, lab, catalogo, campos_pdf) + revisables + _identificacion_pdf(toma, campos_pdf, infs):
             _agregar(h, toma, infs[0], etiqueta)
             informes_con_problema[etiqueta].update(i["id"] for i in infs)
         # Reglas de cada informe (identificación, coherencia interna y, si se pidió, su PDF).
@@ -446,6 +452,7 @@ def analizar(
         "hallazgos_altos": sum(1 for h in hallazgos if h["gravedad"] == ALTO),
         "hallazgos_medios": sum(1 for h in hallazgos if h["gravedad"] == MEDIO),
         "pdf_revisado": leidos_pdf is not None,
+        "informes_formato_anterior": informes_formato_anterior,
     }
     return {"resumen": resumen, "laboratorios": laboratorios, "hallazgos": hallazgos}
 

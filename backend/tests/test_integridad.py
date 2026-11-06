@@ -284,3 +284,20 @@ def _caso_toma_agf():
 
 def _caso_inf_agf():
     return _inf(ot="OT-AGF0113", lab="Agrofresh", lote=None, nro_orden=None, sold_to="FRUTICOLA DOSAL LTDA", ship_to="FRUTICOLA DOSAL LTDA", especie="Cerezas", fecha_muestreo=date(2026, 10, 23))
+
+
+def test_formato_del_informe_agrofresh_se_detecta_por_su_contenido():
+    assert ic.leer_completo(_pdf_eml("agrofresh_varios.eml", "AGF2026-2 "), NOMBRES)["formato"] == 1
+    assert ic.leer_completo(_pdf_eml("agrofresh_47.eml", "AGF2026-47"), NOMBRES)["formato"] == 2
+    assert _campos_57()["formato"] == 2
+
+
+def test_el_primer_formato_no_recibe_reclamos_de_dosis_ni_rotulacion():
+    viejo = _campos_57()
+    viejo.update({"formato": 1, "dosis": {}, "muestra": {}})
+    r = _caso_agf(viejo)
+    assert r["hallazgos"] == [] or all(h["codigo"] not in {"DOSIS_FALTA", "DOSIS_DISTINTA", "DOSIS_NO_CARGADA", "DOSIS_SIN_VERIFICAR", "ROTULACION_FALTA", "ROTULACION_DISTINTA", "ROTULACION_NO_CARGADA"} for h in r["hallazgos"])
+    assert r["resumen"]["informes_formato_anterior"] == 1
+    # el mismo caso en formato 2 sí reclama
+    nuevo = dict(viejo, formato=2)
+    assert "DOSIS_FALTA" in _codigos(_caso_agf(nuevo))
