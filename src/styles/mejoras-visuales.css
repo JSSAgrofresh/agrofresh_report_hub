@@ -2,14 +2,16 @@
    Solo actúa cuando AppLayout pone html[data-mejoras]: el portal de clientes y comerciales no se toca.
    El tema oscuro cuelga de html[data-tema="oscuro"] (src/lib/temaVisual.ts).
    Los selectores por [class*="_x_"] buscan el nombre de la clase de cada CSS Module: si se renombra una, revisar acá. */
-html[data-mejoras] {--foto-pagina: url(../assets/backgrounds/background_lab.jpg);}
+/* Arte de los banners: degradado de la marca con una trama fina y destellos verde/amarillo; sin fotos (la de cerezas se repetía en todas las pantallas). */
+html[data-mejoras] {--arte-banner: repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 2px, transparent 2px 16px), radial-gradient(420px 220px at 92% 8%, rgba(232,195,46,.30), transparent 70%), radial-gradient(560px 280px at 0% 130%, rgba(109,173,60,.45), transparent 70%), linear-gradient(100deg,#1c3014,#2f4f20 55%,#45681f);}
+html[data-mejoras][data-tema="oscuro"] {--arte-banner: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 2px, transparent 2px 16px), radial-gradient(420px 220px at 92% 8%, rgba(232,195,46,.16), transparent 70%), radial-gradient(560px 280px at 0% 130%, rgba(79,138,38,.38), transparent 70%), linear-gradient(100deg,#0a140c,#14281a 55%,#1f3a1f);}
 html[data-mejoras] {--color-bg:#f3f6ee;--radius-lg:22px}
 html[data-mejoras] body {background:#f3f6ee!important}
 html[data-mejoras] #root:before {content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(700px 420px at 88% -6%,rgba(109,173,60,.22),transparent 70%),radial-gradient(520px 400px at 100% 62%,rgba(232,195,46,.14),transparent 70%),radial-gradient(520px 360px at 30% 110%,rgba(79,138,38,.10),transparent 70%)}
 html[data-mejoras] [class*="_shell_"] {background:transparent!important}
 html[data-mejoras] aside[class*="_sidebar_"] a[class*="_navLink"] {border-radius:16px}
 html[data-mejoras] aside[class*="_sidebar_"] a[class*="_navLinkActive_"] {background:rgba(255,255,255,.16)!important;box-shadow:inset 3px 0 0 #e8c32e,0 6px 14px rgba(0,0,0,.12)}
-html[data-mejoras] header[class*="_header_"] {position:relative;overflow:hidden;border-radius:28px;padding:30px 36px!important;margin-bottom:20px;color:#fff;box-shadow:0 14px 34px rgba(36,57,26,.25);background:linear-gradient(100deg,rgba(28,48,20,.94),rgba(52,84,36,.78) 55%,rgba(79,138,38,.35)),var(--foto-pagina) center/cover}
+html[data-mejoras] header[class*="_header_"] {position:relative;overflow:hidden;border-radius:28px;padding:30px 36px!important;margin-bottom:20px;color:#fff;box-shadow:0 14px 34px rgba(36,57,26,.25);background:var(--arte-banner)}
 html[data-mejoras] header[class*="_header_"] h1 {color:#fff!important;font-size:34px!important;letter-spacing:-.8px}
 html[data-mejoras] header[class*="_header_"] p {color:rgba(255,255,255,.86)!important;font-size:15px}
 html[data-mejoras] header[class*="_header_"] button[class*="_secondary_"] {background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.35)!important;border-radius:30px!important}
@@ -81,7 +83,7 @@ html[data-mejoras] aside[class*="_sidebar_"] span[class*="_usuarioNombre_"] {whi
 html[data-mejoras] aside[class*="_sidebar_"] span[class*="_usuarioRol_"] {white-space:nowrap;font-size:9.5px}
 html[data-mejoras] aside[class*="_sidebar_"] div[class*="_usuarioAvatar_"] {width:34px;height:34px}
 html[data-mejoras] [class*="_hero_"][class*="_"]:not([class*="PortalHero"]) {position:relative;overflow:hidden}
-html[data-mejoras] [class*="_hero_"] {border-radius:28px!important;color:#fff!important;border:0!important;background:linear-gradient(100deg,rgba(28,48,20,.94),rgba(52,84,36,.80) 55%,rgba(79,138,38,.35)),var(--foto-pagina) center/cover!important;box-shadow:0 14px 34px rgba(36,57,26,.25)!important;padding:28px 34px!important}
+html[data-mejoras] [class*="_hero_"] {border-radius:28px!important;color:#fff!important;border:0!important;background:var(--arte-banner)!important;box-shadow:0 14px 34px rgba(36,57,26,.25)!important;padding:28px 34px!important}
 html[data-mejoras] [class*="_hero_"] [class*="_titulo_"],
 html[data-mejoras] div[class*="_hero_"] h1,
 html[data-mejoras] div[class*="_hero_"] h2 {color:#fff!important}
@@ -106,43 +108,8 @@ html[data-mejoras][data-tema="oscuro"] [class*="_filtros"],
 html[data-mejoras][data-tema="oscuro"] section,
 html[data-mejoras][data-tema="oscuro"] [class*="_panel"] {background:#142019!important;border-color:#25382b!important;color:#e6eee3}
 html[data-mejoras][data-tema="oscuro"] [class*="_kpi_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_modulo"] {background:linear-gradient(180deg,#162419,#122018)!important}
-html[data-mejoras][data-tema="oscuro"] section[class*="_indicadores_"] {background:transparent!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_card"],
-html[data-mejoras][data-tema="oscuro"] [class*="_tarjeta"]:not(li),
-html[data-mejoras][data-tema="oscuro"] [class*="_bloque_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_kpi_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_tablaCard_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_indicador_"] {box-shadow:0 10px 30px rgba(0,0,0,.35)!important}
-html[data-mejoras][data-tema="oscuro"] h1,
-html[data-mejoras][data-tema="oscuro"] h2,
-html[data-mejoras][data-tema="oscuro"] h3,
-html[data-mejoras][data-tema="oscuro"] h4,
-html[data-mejoras][data-tema="oscuro"] strong,
-html[data-mejoras][data-tema="oscuro"] b,
-html[data-mejoras][data-tema="oscuro"] th,
-html[data-mejoras][data-tema="oscuro"] [class*="_titulo"],
-html[data-mejoras][data-tema="oscuro"] [class*="_principal_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_numero_"] {color:#eef5ea}
-html[data-mejoras][data-tema="oscuro"] p,
-html[data-mejoras][data-tema="oscuro"] span,
-html[data-mejoras][data-tema="oscuro"] li,
-html[data-mejoras][data-tema="oscuro"] td,
-html[data-mejoras][data-tema="oscuro"] label,
-html[data-mejoras][data-tema="oscuro"] small,
-html[data-mejoras][data-tema="oscuro"] div,
-html[data-mejoras][data-tema="oscuro"] a {color:inherit}
-html[data-mejoras][data-tema="oscuro"] [class*="_secundario_"],
-html[data-mejoras][data-tema="oscuro"] [class*="_ayuda"],
-html[data-mejoras][data-tema="oscuro"] [class*="_etiqueta"],
-html[data-mejoras][data-tema="oscuro"] [class*="_sub"],
-html[data-mejoras][data-tema="oscuro"] [class*="_conteo"],
-html[data-mejoras][data-tema="oscuro"] [class*="_descripcion"] {color:#9db09c!important}
-html[data-mejoras][data-tema="oscuro"] header[class*="_header_"] h1,
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] h1,
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] [class*="_titulo_"] {color:#fff!important}
-html[data-mejoras][data-tema="oscuro"] header[class*="_header_"] {background:linear-gradient(100deg,rgba(8,16,10,.94),rgba(20,40,24,.8) 55%,rgba(60,110,30,.3)),var(--foto-pagina) center/cover!important}
-html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] {background:linear-gradient(100deg,rgba(8,16,10,.94),rgba(20,40,24,.82) 55%,rgba(60,110,30,.3)),var(--foto-pagina) center/cover!important}
+html[data-mejoras][data-tema="oscuro"] [class*="_modulo"] {background:var(--arte-banner)!important}
+html[data-mejoras][data-tema="oscuro"] [class*="_hero_"] {background:var(--arte-banner)!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_kpiValor_"],
 html[data-mejoras][data-tema="oscuro"] section[class*="_indicadores_"] strong[class*="_indicadorCifra_"] {color:var(--c,#9be05a)!important}
 html[data-mejoras][data-tema="oscuro"] [class*="_tono_neutro_"] {--c:#8fd45a}
@@ -270,8 +237,11 @@ html[data-mejoras][data-tema="oscuro"] button[class*="_botonIcono_"]:hover {back
    flota con esquinas redondeadas; abajo sigue siendo el menú que se abre desde el botón de las tres rayitas.
    Si estas reglas valieran también en celular, la barra lateral se quedaba ocupando ancho y el contenido salía en una columna angosta. */
 @media (min-width: 881px) {
-  html[data-mejoras] aside[class*="_sidebar_"] {margin:14px 0 14px 14px;height:calc(100vh - 28px)!important;border-radius:28px;box-shadow:0 18px 40px rgba(36,57,26,.28);position:sticky;top:14px}
-  html[data-mejoras] main[class*="_content_"] {padding:14px 30px 40px 26px!important}
+  /* La barra va anclada a la VENTANA (fixed), no pegajosa dentro de la página: así mantiene siempre su tamaño y su
+     posición aunque el contenido sea largo. El contenido se corre a la derecha lo que ocupa la barra (abierta o plegada). */
+  html[data-mejoras] aside[class*="_sidebar_"] {position:fixed!important;left:14px;top:14px;margin:0!important;height:calc(100vh - 28px)!important;height:calc(100dvh - 28px)!important;border-radius:28px;box-shadow:0 18px 40px rgba(36,57,26,.28);z-index:30}
+  html[data-mejoras] main[class*="_content_"] {padding:14px 30px 40px 26px!important;margin-left:calc(252px + 28px);transition:margin-left .26s ease}
+  html[data-mejoras] aside[class*="_sidebar_"][class*="_colapsada_"] ~ main[class*="_content_"] {margin-left:calc(74px + 28px)}
   html[data-mejoras] aside[class*="_sidebar_"]:before {content:"";position:absolute;inset:0;border-radius:28px;pointer-events:none;background:radial-gradient(240px 200px at 100% 0,rgba(232,195,46,.16),transparent 70%)}
 }
 @media (max-width: 880px) {
@@ -299,3 +269,13 @@ html[data-mejoras][data-tema="oscuro"] div[class*="_fila_"][class*="_actual_"] {
 html[data-mejoras][data-tema="oscuro"] div[class*="_vistas_"] {background-color:#101b14!important;border-color:#2a4231!important}
 html[data-mejoras][data-tema="oscuro"] button[class*="_vistaBoton_"] {background-color:transparent!important;color:#b3c3b1!important}
 html[data-mejoras][data-tema="oscuro"] button[class*="_vistaActiva_"] {background-color:#1f3626!important;color:#9be05a!important}
+
+/* ===== Banners: marca de agua con el logo de AgroFresh ===== */
+html[data-mejoras] header[class*="_header_"]::before,
+html[data-mejoras] [class*="_hero_"]::before {content:"";position:absolute;right:28px;top:50%;width:300px;height:120px;transform:translateY(-50%);background:url(../assets/agrofresh-logo.png) center/contain no-repeat;opacity:.14;pointer-events:none}
+html[data-mejoras] header[class*="_header_"] > *,
+html[data-mejoras] [class*="_hero_"] > * {position:relative;z-index:1}
+@media (max-width: 880px) {
+  html[data-mejoras] header[class*="_header_"]::before,
+  html[data-mejoras] [class*="_hero_"]::before {width:170px;height:70px;right:10px;opacity:.1}
+}
