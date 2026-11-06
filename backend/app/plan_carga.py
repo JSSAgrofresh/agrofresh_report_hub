@@ -16,6 +16,7 @@ Todo tolera que falte la migración 0062; el detalle y las dos cantidades necesi
 from __future__ import annotations
 
 import io
+import re
 import logging
 from collections import defaultdict
 from typing import Any
@@ -43,6 +44,12 @@ _FILA_GRAFICO = {"Residuales": "residuales", "Patologías": "fito", "Microbiolog
 
 def servicio_clave(servicio: str) -> str:
     return _FILA_GRAFICO.get(categoria_servicio(servicio), "otro")
+
+
+def _linea_del_nombre(nombre: Any) -> int | None:
+    """N° de línea que trae el nombre del servicio («Patologias L2» → 2); None si no lo trae."""
+    m = re.search(r"\bL\s*(\d+)\b", str(nombre or ""), re.IGNORECASE)
+    return int(m.group(1)) if m else None
 
 
 def _entero(valor: Any) -> int | None:
@@ -119,7 +126,11 @@ def leer_excel(contenido: bytes) -> list[dict[str, Any]]:
         }
         try:
             if formato == "base":
-                item["linea"] = _entero(celda(f, "LINEA"))
+                # La línea la dice el nombre del servicio («Residuales L2»); la columna Línea a veces repite el mismo número
+                # en dos líneas distintas y entonces se juntaban como si fueran una repetida.
+                # La línea la dice el nombre del servicio («Residuales L2»); la columna Línea a veces repite el mismo número
+                # en dos líneas distintas y entonces se juntaban como si fueran una repetida.
+                item["linea"] = _linea_del_nombre(celda(f, "SERVICIO")) or _entero(celda(f, "LINEA"))
                 item["semana"] = texto(f, "SEMANA")
                 item["tipo_cliente"] = texto(f, "TIPO CLIENTE")
                 item["tipo_servicio"] = texto(f, "TIPO SERVICIO")
